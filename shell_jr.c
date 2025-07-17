@@ -9,102 +9,98 @@
 #include <err.h>
 
 #define MAX_LINE_LEN 1024
+#define MAX_STACK 16
 
 int main() {
-
     char buffer[MAX_LINE_LEN];
     char command[MAX_LINE_LEN];
     char argument[MAX_LINE_LEN];
-    char *directory_stack[16];
+    char *directory_stack[MAX_STACK];
     int stack_count = 0;
     int stop = 1;
     int inputs;
-    
-    while (stop && fgets(buffer, MAX_LINE_LEN + 1, stdin)) {
 
+    while (stop) {
         printf("shell_jr: ");
         fflush(stdout);
+
+        if (!fgets(buffer, MAX_LINE_LEN + 1, stdin)) {
+            break;  // EOF
+        }
+
         inputs = sscanf(buffer, "%s%s", command, argument);
 
         if (strcmp(command, "exit") == 0 || strcmp(command, "goodbye") == 0) {
             printf("See you\n");
             stop = 0;
-        }
+        } 
         else if (strcmp(command, "cd") == 0) {
-
-            if (chdir(argument) != 0) {
+            if (inputs < 2 || chdir(argument) != 0) {
                 printf("Cannot change to directory %s\n", argument);
             }
-
-        }
+        } 
         else if (strcmp(command, "pushd") == 0) {
-
-            if (stack_count == 16) {
+            if (stack_count == MAX_STACK) {
                 printf("Directory stack is full\n");
-            }
-            else {
-                char *current_directory;
-                current_directory = getcwd(NULL, 0);
-                directory_stack[stack_count++] = current_directory; /*pushes current directory onto stack*/
-                chdir(argument); /*changes current directory to directory given*/
-            }
-        }
-        else if (strcmp(command, "dirs") == 0) {
+            } else {
+                char *current_directory = getcwd(NULL, 0);
+                if (!current_directory) {
+                    perror("getcwd");
+                    continue;
+                }
+                directory_stack[stack_count++] = current_directory;
 
-            int i;
-
-            if (stack_count == 0) {
-                printf("Directory stack is empty\n");
-            }
-            else {
-                printf("\n");
-                for (i = 0; i < stack_count; i++) {
-                    printf("%s\n", directory_stack[i]);
+                if (inputs < 2 || chdir(argument) != 0) {
+                    printf("Cannot change to directory %s\n", argument);
                 }
             }
-        }
+        } 
+        else if (strcmp(command, "dirs") == 0) {
+            for (int i = stack_count - 1; i >= 0; i--) {
+                printf("%s\n", directory_stack[i]);
+            }
+        } 
         else if (strcmp(command, "popd") == 0) {
             if (stack_count == 0) {
                 printf("Directory stack is empty\n");
+            } else {
+                char *last_dir = directory_stack[--stack_count];
+                if (chdir(last_dir) != 0) {
+                    printf("Failed to change to %s\n", last_dir);
+                }
+                free(last_dir);
             }
-            else {
-                printf("%s was removed\n", directory_stack[stack_count]);
-                stack_count--;
-                chdir(directory_stack[stack_count]);
-                free(directory_stack[stack_count]);
-                directory_stack[stack_count] = NULL;
-
-            }
-        }
+        } 
         else {
-            
             int pid = fork();
 
-            if (pid == 0) { /*child*/
-                char *argv[MAX_LINE_LEN];
+            if (pid == 0) { // Child
+                char *argv[3];  // Only supports command and one argument
                 argv[0] = command;
 
-                fflush(stdout);
                 if (inputs == 1) {
-                    if (execvp(command, argv) == -1) {
-                        printf("Failed to execute %s\n", command);
-                        fflush(stdout);
-                        exit(EX_OSERR);
-                    }
-                }
-                else {
+                    argv[1] = NULL;
+                } else {
                     argv[1] = argument;
-                    if (execvp(command, argv) == -1) {
-                        printf("Failed to execute %s\n", command);
-                        fflush(stdout);
-                        exit(EX_OSERR);
-                    }
+                    argv[2] = NULL;
                 }
-            }
+
+                execvp(command, argv);
+                printf("Failed to execute %s\n", command);
+                exit(EX_OSERR);
+            } 
+            else if (pid > 0) {
+                wait(NULL);  // Parent waits
+            } 
             else {
-                wait(NULL);
+                perror("fork");
             }
         }
+    }
+
+    // Clean up any allocated memory
+    for (int i = 0; i < stack_count; i++) {
+        free(directory_stack[i]);
     }
 
     return 0;
