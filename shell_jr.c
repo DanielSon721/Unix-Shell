@@ -22,9 +22,9 @@ int main() {
     
     while (stop && fgets(buffer, MAX_LINE_LEN + 1, stdin)) {
 
-        inputs = sscanf(buffer, "%s%s", command, argument);
         printf("shell_jr: ");
         fflush(stdout);
+        inputs = sscanf(buffer, "%s%s", command, argument);
 
         if (strcmp(command, "exit") == 0 || strcmp(command, "goodbye") == 0) {
             printf("See you\n");
@@ -33,7 +33,7 @@ int main() {
         else if (strcmp(command, "cd") == 0) {
 
             if (chdir(argument) != 0) {
-                printf("Cannot change to directory %s", argument);
+                printf("Cannot change to directory %s\n", argument);
             }
 
         }
@@ -53,8 +53,14 @@ int main() {
 
             int i;
 
-            for (i = 0; i < stack_count; i++) {
-                printf("%s\n", directory_stack[i]);
+            if (stack_count == 0) {
+                printf("Directory stack is empty\n");
+            }
+            else {
+                printf("\n");
+                for (i = 0; i < stack_count; i++) {
+                    printf("%s\n", directory_stack[i]);
+                }
             }
         }
         else if (strcmp(command, "popd") == 0) {
@@ -62,7 +68,12 @@ int main() {
                 printf("Directory stack is empty\n");
             }
             else {
-                directory_stack[stack_count--] = NULL;
+                printf("%s was removed\n", directory_stack[stack_count]);
+                stack_count--;
+                chdir(directory_stack[stack_count]);
+                free(directory_stack[stack_count]);
+                directory_stack[stack_count] = NULL;
+
             }
         }
         else {
@@ -96,10 +107,5 @@ int main() {
         }
     }
 
-    if (stop) {
-        printf("shell_jr: ");
-    }
-
     return 0;
 }
-
